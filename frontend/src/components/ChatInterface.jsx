@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Send, User, Bot, Loader2, Image as ImageIcon, X, Mic, Volume2 } from 'lucide-react';
@@ -299,7 +300,7 @@ const ChatInterface = () => {
         </form>
       </div>
 
-      {selectedImage && (
+      {selectedImage && createPortal(
         <div className="image-modal-overlay" onClick={() => setSelectedImage(null)}>
           <div className="image-modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-modal-btn" onClick={() => setSelectedImage(null)}>
@@ -307,7 +308,8 @@ const ChatInterface = () => {
             </button>
             <img src={selectedImage} alt="Expanded view" className="expanded-image" />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
