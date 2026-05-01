@@ -4,7 +4,7 @@ pydantic
 python-multipart
 PyMuPDF
 pinecone
-sentence-transformers
+fastembed
 requests
 groq
 cloudinary

@@ -9,7 +9,7 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore")
 
 from pinecone import Pinecone
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 import uuid
 from groq import Groq
 import json
@@ -30,8 +30,8 @@ class RAGEngine:
         self.groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
         self.llm_model = "llama-3.3-70b-versatile"
         
-        # Initialize Sentence Transformer for embeddings
-        self.encoder = SentenceTransformer(embedding_model)
+        # Initialize fastembed (ONNX runtime) for memory efficiency
+        self.encoder = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
 
     def add_chunks(self, chunks):
         """Adds PDF chunks to Pinecone"""
@@ -47,7 +47,7 @@ class RAGEngine:
             metadata["text"] = text
             
             chunk_id = str(uuid.uuid4())
-            embedding = self.encoder.encode([text])[0].tolist()
+            embedding = list(self.encoder.embed([text]))[0].tolist()
             
             vectors.append({
                 "id": chunk_id,
@@ -69,7 +69,7 @@ class RAGEngine:
             return
 
         # Embed question
-        query_embedding = self.encoder.encode([question])[0].tolist()
+        query_embedding = list(self.encoder.embed([question]))[0].tolist()
         
         # Search DB
         results = self.index.query(
