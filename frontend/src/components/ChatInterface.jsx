@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { createPortal } from 'react-dom';
+import { AuthContext } from '../context/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, User, Bot, Loader2, Image as ImageIcon, X, Mic, Volume2 } from 'lucide-react';
+import { Send, User, Bot, Loader2, Image as ImageIcon, X, Mic, Volume2, Download, Menu, PlusCircle, Trash2 } from 'lucide-react';
 import '../styles/ChatInterface.css';
 
 const ChatInterface = () => {
@@ -21,8 +22,113 @@ const ChatInterface = () => {
   const endOfMessagesRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const { token } = useContext(AuthContext);
+
+  const [conversations, setConversations] = useState([]);
+  const [currentConvId, setCurrentConvId] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const suggestedPrompts = [
+    "Summarize the key points from the documents.",
+    "What are the main risks or challenges mentioned?",
+    "List the key deliverables discussed.",
+    "Are there any specific dates or deadlines?"
+  ];
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  const downloadReport = () => {
+    let report = "# DocuVision AI Analysis Report\n\n";
+    messages.forEach(msg => {
+      report += `### ${msg.role === 'user' ? 'User' : 'DocuVision AI'}\n`;
+      report += `${msg.content}\n\n`;
+      if (msg.sources && msg.sources.length > 0) {
+        report += `**Citations:**\n`;
+        msg.sources.forEach(src => {
+          report += `- Page ${src.page_number} (${src.file_id})\n`;
+        });
+        report += '\n';
+      }
+    });
+
+    const blob = new Blob([report], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `DocuVision_Report_${new Date().toISOString().split('T')[0]}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch(`${API_URL}/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadConversation = async (convId) => {
+    try {
+      const res = await fetch(`${API_URL}/conversations/${convId}/messages`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const formattedMessages = data.map(m => ({
+          role: m.role,
+          content: m.content,
+          sources: m.sources ? JSON.parse(m.sources) : []
+        }));
+        setMessages(formattedMessages.length ? formattedMessages : [{
+          role: 'bot',
+          content: "Hi! I've processed your documents. Ask me anything about them, and I'll cite the exact pages and show relevant images.",
+          sources: []
+        }]);
+        setCurrentConvId(convId);
+        setIsSidebarOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  
+  const startNewChat = () => {
+    setCurrentConvId(null);
+    setMessages([{
+      role: 'bot',
+      content: "Hi! I've processed your documents. Ask me anything about them, and I'll cite the exact pages and show relevant images.",
+      sources: []
+    }]);
+    setIsSidebarOpen(false);
+  };
+
+  const handleDeleteConversation = async (convId, e) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this chat?")) return;
+    try {
+      const res = await fetch(`${API_URL}/conversations/${convId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setConversations(prev => prev.filter(c => c.id !== convId));
+        if (currentConvId === convId) {
+          startNewChat();
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const scrollToBottom = () => {
     if (endOfMessagesRef.current) {
@@ -34,6 +140,10 @@ const ChatInterface = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (token) fetchConversations();
+  }, [token]);
 
   const handleReadAloud = (text, idx) => {
     if (readingMessageIdx === idx) {
@@ -91,6 +201,9 @@ const ChatInterface = () => {
         try {
           const res = await fetch(`${API_URL}/transcribe`, {
             method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
             body: formData,
           });
           
@@ -138,19 +251,50 @@ const ChatInterface = () => {
     }
   };
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!inputVal.trim()) return;
+  const handleSend = async (e, forcedQuery = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const queryToUse = forcedQuery || inputVal.trim();
+    if (!queryToUse) return;
 
-    const userQuery = inputVal.trim();
+    const userQuery = queryToUse;
     setMessages(prev => [...prev, { role: 'user', content: userQuery }]);
     setInputVal('');
     setIsLoading(true);
 
+    let activeConvId = currentConvId;
+    if (!activeConvId) {
+      try {
+        const res = await fetch(`${API_URL}/conversations`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          activeConvId = data.id;
+          setCurrentConvId(data.id);
+          fetchConversations();
+        }
+      } catch (err) { console.error(err); }
+    }
+
+    if (activeConvId) {
+      fetch(`${API_URL}/conversations/${activeConvId}/messages`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ role: 'user', content: userQuery })
+      });
+    }
+
     try {
       const res = await fetch(`${API_URL}/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ question: userQuery })
       });
 
@@ -206,6 +350,21 @@ const ChatInterface = () => {
         newMsgs[newMsgs.length - 1] = { ...currentBotMessage };
         return newMsgs;
       });
+
+      if (activeConvId && currentBotMessage.content) {
+        fetch(`${API_URL}/conversations/${activeConvId}/messages`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          },
+          body: JSON.stringify({ 
+            role: 'bot', 
+            content: currentBotMessage.content,
+            sources: currentBotMessage.sources && currentBotMessage.sources.length > 0 ? JSON.stringify(currentBotMessage.sources) : null
+          })
+        });
+      }
     } catch (err) {
       console.error(err);
       setIsLoading(false);
@@ -224,7 +383,55 @@ const ChatInterface = () => {
   };
 
   return (
-    <div className="chat-container">
+    <div className="chat-container" style={{ position: 'relative' }}>
+      <button 
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        style={{ position: 'absolute', top: '15px', left: '15px', zIndex: 10, background: '#1f2937', color: '#4ade80', border: '1px solid #374151', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+      >
+        <Menu size={16} /> History
+      </button>
+
+      {isSidebarOpen && (
+        <div style={{ position: 'absolute', top: '0', left: '0', width: '250px', height: '100%', background: '#111827', zIndex: 20, borderRight: '1px solid #374151', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ color: 'white', margin: 0 }}>Chat History</h3>
+            <button onClick={() => setIsSidebarOpen(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}><X size={20}/></button>
+          </div>
+          <button onClick={startNewChat} style={{ background: '#4ade80', color: 'black', border: 'none', padding: '10px', borderRadius: '5px', display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'center', cursor: 'pointer', marginBottom: '20px', fontWeight: 'bold' }}>
+            <PlusCircle size={16} /> New Chat
+          </button>
+          <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {conversations.length === 0 && <p style={{color: '#9ca3af', fontSize: '14px', textAlign: 'center'}}>No past conversations.</p>}
+            {conversations.map(conv => (
+              <div key={conv.id} style={{ display: 'flex', alignItems: 'center', background: currentConvId === conv.id ? '#374151' : 'transparent', borderRadius: '5px', borderBottom: '1px solid #1f2937' }}>
+                <button 
+                  onClick={() => loadConversation(conv.id)}
+                  style={{ flex: 1, background: 'transparent', color: 'white', border: 'none', padding: '10px', textAlign: 'left', cursor: 'pointer' }}
+                >
+                  {conv.title} <br/><small style={{color: '#9ca3af'}}>{new Date(conv.created_at).toLocaleDateString()}</small>
+                </button>
+                <button 
+                  onClick={(e) => handleDeleteConversation(conv.id, e)}
+                  style={{ background: 'transparent', border: 'none', color: '#ef4444', padding: '10px', cursor: 'pointer' }}
+                  title="Delete Chat"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {messages.length > 1 && (
+        <button 
+          onClick={downloadReport} 
+          style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 10, background: '#1f2937', color: '#4ade80', border: '1px solid #374151', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+          title="Export Chat as Report"
+        >
+          <Download size={16} /> Export
+        </button>
+      )}
       <div className="messages-area">
         {messages.map((msg, idx) => (
           <div key={idx} className={`message-wrapper ${msg.role}`}>
@@ -294,6 +501,26 @@ const ChatInterface = () => {
             </div>
           </div>
         )}
+
+        {messages.length === 1 && !isLoading && (
+          <div className="suggested-prompts" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', padding: '20px', justifyContent: 'center', marginTop: '20px' }}>
+            {suggestedPrompts.map((prompt, idx) => (
+              <button 
+                key={idx} 
+                onClick={(e) => {
+                  setInputVal(prompt);
+                  handleSend(e, prompt);
+                }}
+                style={{ background: '#1f2937', color: '#4ade80', border: '1px solid #374151', padding: '10px 15px', borderRadius: '20px', cursor: 'pointer', transition: 'all 0.3s', fontSize: '14px' }}
+                onMouseOver={(e) => e.target.style.background = '#374151'}
+                onMouseOut={(e) => e.target.style.background = '#1f2937'}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div ref={endOfMessagesRef} />
       </div>
 

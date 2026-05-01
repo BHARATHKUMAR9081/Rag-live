@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { AuthContext } from '../context/AuthContext';
 import { UploadCloud, File, X, Loader2 } from 'lucide-react';
 import '../styles/Uploader.css';
 
@@ -7,6 +8,7 @@ const Uploader = ({ onUploadComplete, onSkip }) => {
   const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
+  const { token } = useContext(AuthContext);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -37,6 +39,9 @@ const Uploader = ({ onUploadComplete, onSkip }) => {
     try {
       const res = await fetch(`${API_URL}/upload`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData
       });
 
