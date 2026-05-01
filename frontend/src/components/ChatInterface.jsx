@@ -58,7 +58,16 @@ const ChatInterface = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Determine the best supported mime type for the current browser
+      const options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options.mimeType = 'audio/mp4';
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -69,23 +78,35 @@ const ChatInterface = () => {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // Use the actual mime type the recorder used
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        const fileExtension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         setIsProcessingAudio(true);
         
         const formData = new FormData();
-        formData.append('file', audioBlob, 'voice_input.webm');
+        formData.append('file', audioBlob, `voice_input.${fileExtension}`);
 
         try {
           const res = await fetch(`${API_URL}/transcribe`, {
             method: 'POST',
             body: formData,
           });
+          
+          if (!res.ok) {
+            throw new Error(`Server returned status ${res.status}`);
+          }
+          
           const data = await res.json();
           if (data.text) {
             setInputVal(prev => prev + (prev ? ' ' : '') + data.text);
+          } else if (data.error) {
+            alert("Transcription error from backend: " + data.error);
           }
         } catch (err) {
           console.error("Transcription failed", err);
+          alert(`Transcription failed. Could not connect to backend at ${API_URL}. Error: ` + err.message);
         } finally {
           setIsProcessingAudio(false);
         }
