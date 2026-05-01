@@ -8,6 +8,8 @@ const Uploader = ({ onUploadComplete, onSkip }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   const onDrop = useCallback(acceptedFiles => {
     // only accept pdf
     const pdfs = acceptedFiles.filter(f => f.type === 'application/pdf' || f.name.endsWith('.pdf'));
@@ -33,7 +35,7 @@ const Uploader = ({ onUploadComplete, onSkip }) => {
     files.forEach(file => formData.append('files', file));
 
     try {
-      const res = await fetch('http://localhost:8000/upload', {
+      const res = await fetch(`${API_URL}/upload`, {
         method: 'POST',
         body: formData
       });

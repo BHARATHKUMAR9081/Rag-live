@@ -9,9 +9,11 @@ function App() {
   const [documents, setDocuments] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   const fetchDocuments = async () => {
     try {
-      const res = await fetch('http://localhost:8000/documents');
+      const res = await fetch(`${API_URL}/documents`);
       if (res.ok) {
         const data = await res.json();
         setDocuments(data.documents);
@@ -35,7 +37,7 @@ function App() {
 
     setIsDeleting(true);
     try {
-      const res = await fetch(`http://localhost:8000/documents/${fileId}`, {
+      const res = await fetch(`${API_URL}/documents/${fileId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
