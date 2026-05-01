@@ -145,9 +145,9 @@ const ChatInterface = () => {
                             {src.images.map((imgUrl, iIdx) => (
                               <div key={iIdx} className="image-wrapper">
                                 <img
-                                  src={`http://localhost:8000${imgUrl}`}
+                                  src={imgUrl.startsWith('http') ? imgUrl : `${API_URL}${imgUrl}`}
                                   alt={`Extracted from page ${src.page_number}`}
-                                  onClick={() => setSelectedImage(`http://localhost:8000${imgUrl}`)}
+                                  onClick={() => setSelectedImage(imgUrl.startsWith('http') ? imgUrl : `${API_URL}${imgUrl}`)}
                                 />
                               </div>
                             ))}

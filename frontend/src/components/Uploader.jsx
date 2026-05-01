@@ -25,7 +25,7 @@ const Uploader = ({ onUploadComplete, onSkip }) => {
 
   const handleUpload = async () => {
     if (files.length === 0) return;
-    
+
     setIsUploading(true);
     setError('');
 
@@ -37,9 +37,9 @@ const Uploader = ({ onUploadComplete, onSkip }) => {
         method: 'POST',
         body: formData
       });
-      
+
       if (!res.ok) throw new Error('Upload failed');
-      
+
       const data = await res.json();
       console.log('Upload success:', data);
       setIsUploading(false);
@@ -53,8 +53,8 @@ const Uploader = ({ onUploadComplete, onSkip }) => {
 
   return (
     <div className="uploader-container">
-      <div 
-        {...getRootProps()} 
+      <div
+        {...getRootProps()}
         className={`dropzone ${isDragActive ? 'active' : ''}`}
       >
         <input {...getInputProps()} />
@@ -88,8 +88,8 @@ const Uploader = ({ onUploadComplete, onSkip }) => {
               </li>
             ))}
           </ul>
-          <button 
-            className="upload-submit-btn" 
+          <button
+            className="upload-submit-btn"
             onClick={handleUpload}
             disabled={isUploading}
           >

@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+PyMuPDF
+pinecone
+sentence-transformers
+requests
+groq
+cloudinary
+python-dotenv

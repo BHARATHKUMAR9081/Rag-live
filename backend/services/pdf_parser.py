@@ -1,5 +1,6 @@
 import fitz # PyMuPDF
 import os
+import cloudinary.uploader
 
 def chunk_text(text, chunk_size=300, overlap=50):
     words = text.split()
@@ -46,7 +47,13 @@ def parse_pdf(pdf_path: str, static_dir: str):
                 with open(image_path, "wb") as f:
                     f.write(image_bytes)
                     
-                saved_images.append(f"/static/media/{image_filename}")
+                # Upload to Cloudinary
+                upload_result = cloudinary.uploader.upload(image_path, folder=f"antirag_pdf_images/{file_id}")
+                saved_images.append(upload_result["secure_url"])
+                
+                # Clean up local file
+                if os.path.exists(image_path):
+                    os.remove(image_path)
             except Exception as e:
                 print(f"Error extracting image {img_index} on page {page_num+1}: {e}")
                 

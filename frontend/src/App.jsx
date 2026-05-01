@@ -32,7 +32,7 @@ function App() {
 
   const handleDelete = async (fileId) => {
     if (!window.confirm(`Are you sure you want to delete ${fileId} from the vector storage?`)) return;
-    
+
     setIsDeleting(true);
     try {
       const res = await fetch(`http://localhost:8000/documents/${fileId}`, {
@@ -57,7 +57,7 @@ function App() {
         <h1>Multi-Modal RAG <span>Explorer</span></h1>
         <p>A fast, local, private way to converse with your documents.</p>
       </header>
-      
+
       <main className="app-main">
         {!hasUploaded ? (
           <Uploader onUploadComplete={fetchDocuments} onSkip={() => setHasUploaded(true)} />
@@ -67,7 +67,7 @@ function App() {
               <button className="new-upload-btn" onClick={() => setHasUploaded(false)}>
                 + Upload New Documents
               </button>
-              
+
               <div className="info-panel document-panel">
                 <h3>Stored Documents ({documents.length})</h3>
                 {documents.length === 0 ? (
@@ -80,8 +80,8 @@ function App() {
                           <FileText size={16} className="doc-icon" />
                           <span className="doc-name">{docId}</span>
                         </div>
-                        <button 
-                          className="delete-btn" 
+                        <button
+                          className="delete-btn"
                           onClick={() => handleDelete(docId)}
                           disabled={isDeleting}
                           title="Delete Document"

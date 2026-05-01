@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -88,7 +91,15 @@ async def delete_document(file_id: str):
         if os.path.exists(pdf_path):
             os.remove(pdf_path)
             
-        # Remove extracted images
+        # Remove extracted images from Cloudinary
+        import cloudinary.api
+        try:
+            cloudinary.api.delete_resources_by_prefix(f"antirag_pdf_images/{file_id}")
+            cloudinary.api.delete_folder(f"antirag_pdf_images/{file_id}")
+        except Exception as e:
+            print(f"Error deleting from Cloudinary: {e}")
+
+        # Remove local extracted images if they exist
         if os.path.exists(STATIC_DIR):
             for filename in os.listdir(STATIC_DIR):
                 if filename.startswith(f"{file_id}_p"):
