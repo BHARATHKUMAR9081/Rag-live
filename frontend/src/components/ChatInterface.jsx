@@ -116,7 +116,7 @@ const ChatInterface = () => {
       <div className="messages-area">
         {messages.map((msg, idx) => (
           <div key={idx} className={`message-wrapper ${msg.role}`}>
-            <div className="avatar">
+            <div className={`avatar ${msg.isGenerating ? 'is-generating' : ''}`}>
               {msg.role === 'user' ? <User size={20} /> : <Bot size={20} />}
             </div>
             <div className="message-content">

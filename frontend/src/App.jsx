@@ -53,10 +53,15 @@ function App() {
 
   return (
     <div className="app-container">
-      <header className="app-header">
-        <h1>Multi-Modal RAG <span>Explorer</span></h1>
-        <p>A fast, local, private way to converse with your documents.</p>
-      </header>
+      <nav className="top-nav">
+        <div className="nav-brand">
+          <div className="logo-glow"></div>
+          <h1>DocuVision <span>AI</span></h1>
+        </div>
+        <div className="nav-status">
+          <span className="dot green"></span> System Online
+        </div>
+      </nav>
 
       <main className="app-main">
         {!hasUploaded ? (
@@ -94,11 +99,11 @@ function App() {
                 )}
               </div>
 
-              <div className="info-panel">
-                <h3>System Status</h3>
+              <div className="info-panel glass-panel">
+                <h3>System Intelligence</h3>
                 <ul>
-                  <li><span className="dot green"></span> Vector DB Online</li>
-                  <li><span className="dot green"></span> Local RAG Mode Active</li>
+                  <li><span className="dot green"></span> Vector DB Active</li>
+                  <li><span className="dot green"></span> Multi-Modal Vision Ready</li>
                 </ul>
               </div>
             </div>
