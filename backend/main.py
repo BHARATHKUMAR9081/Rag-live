@@ -12,6 +12,8 @@ import os
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
+from groq import Groq
+
 from typing import List
 
 from services.pdf_parser import parse_pdf
@@ -75,6 +77,30 @@ from fastapi.responses import StreamingResponse
 @app.post("/query")
 async def query_documents(request: QueryRequest):
     return StreamingResponse(rag.query_stream(request.question), media_type="application/x-ndjson")
+
+@app.post("/transcribe")
+async def transcribe_audio(file: UploadFile = File(...)):
+    try:
+        # Save temp audio file
+        temp_file = f"temp_{file.filename}"
+        with open(temp_file, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        with open(temp_file, "rb") as f:
+            transcription = client.audio.transcriptions.create(
+                file=(file.filename, f.read()),
+                model="whisper-large-v3"
+            )
+            
+        # Clean up temp file
+        os.remove(temp_file)
+        
+        return {"text": transcription.text}
+    except Exception as e:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+        return {"error": str(e)}
 
 @app.get("/documents")
 async def get_documents():

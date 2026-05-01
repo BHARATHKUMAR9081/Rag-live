@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, User, Bot, Loader2, Image as ImageIcon, X, Mic, MicOff, Volume2, Square } from 'lucide-react';
+import { Send, User, Bot, Loader2, Image as ImageIcon, X, Mic, Volume2 } from 'lucide-react';
 import '../styles/ChatInterface.css';
 
 const ChatInterface = () => {
@@ -13,9 +13,15 @@ const ChatInterface = () => {
   const [inputVal, setInputVal] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [isListening, setIsListening] = useState(false);
-  const [speakingIdx, setSpeakingIdx] = useState(null);
-  const recognitionRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const [readingMessageIdx, setReadingMessageIdx] = useState(null);
+  
+  const endOfMessagesRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const scrollToBottom = () => {
     if (endOfMessagesRef.current) {
@@ -28,55 +34,85 @@ const ChatInterface = () => {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    // Setup Speech Recognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      
-      recognitionRef.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInputVal(prev => (prev ? prev + ' ' : '') + transcript);
-      };
-      
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
-    }
-
-    // Cleanup Speech Synthesis
-    return () => {
+  const handleReadAloud = (text, idx) => {
+    if (readingMessageIdx === idx) {
       window.speechSynthesis.cancel();
-    };
-  }, []);
+      setReadingMessageIdx(null);
+      return;
+    }
+    
+    window.speechSynthesis.cancel(); // Stop any current speech
+    
+    // Strip markdown formatting for cleaner reading
+    const cleanText = text.replace(/[*_#`~]/g, '');
+    
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.onend = () => setReadingMessageIdx(null);
+    utterance.onerror = () => setReadingMessageIdx(null);
+    
+    setReadingMessageIdx(idx);
+    window.speechSynthesis.speak(utterance);
+  };
 
-  const toggleListen = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    } else {
-      if (recognitionRef.current) {
-        recognitionRef.current.start();
-        setIsListening(true);
-      } else {
-        alert("Voice input is not supported in this browser.");
-      }
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setIsProcessingAudio(true);
+        
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'voice_input.webm');
+
+        try {
+          const res = await fetch(`${API_URL}/transcribe`, {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await res.json();
+          if (data.text) {
+            setInputVal(prev => prev + (prev ? ' ' : '') + data.text);
+          }
+        } catch (err) {
+          console.error("Transcription failed", err);
+        } finally {
+          setIsProcessingAudio(false);
+        }
+        
+        // Stop all tracks to release mic
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      alert("Could not access microphone. Please check permissions.");
     }
   };
 
-  const toggleSpeak = (text, idx) => {
-    if (speakingIdx === idx) {
-      window.speechSynthesis.cancel();
-      setSpeakingIdx(null);
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
     } else {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.onend = () => setSpeakingIdx(null);
-      utterance.onerror = () => setSpeakingIdx(null);
-      window.speechSynthesis.speak(utterance);
-      setSpeakingIdx(idx);
+      startRecording();
     }
   };
 
@@ -90,7 +126,7 @@ const ChatInterface = () => {
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:8000/query', {
+      const res = await fetch(`${API_URL}/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: userQuery })
@@ -184,6 +220,17 @@ const ChatInterface = () => {
                 )}
               </div>
 
+              {msg.role === 'bot' && !msg.isGenerating && (
+                <button 
+                  className={`read-aloud-btn ${readingMessageIdx === idx ? 'reading' : ''}`}
+                  onClick={() => handleReadAloud(msg.content, idx)}
+                  title={readingMessageIdx === idx ? "Stop reading" : "Read aloud"}
+                >
+                  <Volume2 size={16} />
+                  <span>{readingMessageIdx === idx ? "Stop" : "Read"}</span>
+                </button>
+              )}
+
               {msg.role === 'bot' && !msg.isGenerating && msg.sources && msg.sources.length > 0 && (
                 <div className="sources-container">
                   <div className="sources-label">Extracted Context</div>
@@ -199,9 +246,9 @@ const ChatInterface = () => {
                             {src.images.map((imgUrl, iIdx) => (
                               <div key={iIdx} className="image-wrapper">
                                 <img
-                                  src={imgUrl.startsWith('http') ? imgUrl : `http://localhost:8000${imgUrl}`}
+                                  src={imgUrl.startsWith('http') ? imgUrl : `${API_URL}${imgUrl}`}
                                   alt={`Extracted from page ${src.page_number}`}
-                                  onClick={() => setSelectedImage(imgUrl.startsWith('http') ? imgUrl : `http://localhost:8000${imgUrl}`)}
+                                  onClick={() => setSelectedImage(imgUrl.startsWith('http') ? imgUrl : `${API_URL}${imgUrl}`)}
                                 />
                               </div>
                             ))}
@@ -211,22 +258,6 @@ const ChatInterface = () => {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-              
-              {msg.role === 'bot' && !msg.isGenerating && (
-                <div className="action-row">
-                  <button 
-                    className={`speak-btn ${speakingIdx === idx ? 'active' : ''}`}
-                    onClick={() => toggleSpeak(msg.content, idx)}
-                    title="Read Aloud"
-                  >
-                    {speakingIdx === idx ? (
-                      <><Square size={16} fill="currentColor" /> Stop</>
-                    ) : (
-                      <><Volume2 size={16} /> Listen</>
-                    )}
-                  </button>
                 </div>
               )}
             </div>
@@ -248,20 +279,21 @@ const ChatInterface = () => {
         <form onSubmit={handleSend} className="input-form">
           <input
             type="text"
-            placeholder="Ask a question about your documents..."
+            placeholder={isRecording ? "Listening..." : "Ask a question about your documents..."}
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
-            disabled={isLoading}
+            disabled={isLoading || isProcessingAudio || isRecording}
           />
           <button 
             type="button" 
-            onClick={toggleListen} 
-            className={`mic-btn ${isListening ? 'listening' : ''}`}
+            className={`mic-btn ${isRecording ? 'recording' : ''}`} 
+            onClick={toggleRecording}
+            disabled={isLoading || isProcessingAudio}
             title="Voice Input"
           >
-            {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+            {isProcessingAudio ? <Loader2 size={20} className="spinner" /> : <Mic size={20} />}
           </button>
-          <button type="submit" disabled={isLoading || !inputVal.trim()} className="send-btn">
+          <button type="submit" disabled={isLoading || isProcessingAudio || !inputVal.trim()} className="send-btn">
             <Send size={20} />
           </button>
         </form>

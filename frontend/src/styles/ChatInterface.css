@@ -69,7 +69,6 @@
   border: 1px solid var(--glass-border);
   line-height: 1.7;
   font-size: 1rem;
-  color: #ffffff;
 }
 
 .message-wrapper.user .message-content {
@@ -194,17 +193,18 @@
 
 .image-wrapper img {
   max-width: 100%;
-  height: 200px;
-  object-fit: contain;
-  background: rgba(0, 0, 0, 0.4);
+  height: 80px;
+  object-fit: cover;
   border-radius: 8px;
   border: 1px solid var(--glass-border);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
+  filter: brightness(0.8);
 }
 
 .image-wrapper img:hover {
-  transform: scale(1.02);
+  transform: scale(1.05);
+  filter: brightness(1.1);
   border-color: var(--accent-secondary);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
 }
@@ -244,7 +244,7 @@
   background: none;
   border: none;
   color: var(--text-primary);
-  padding: 0.8rem 0.5rem;
+  padding: 0.8rem 1.5rem;
   font-size: 1.05rem;
   outline: none;
 }
@@ -254,7 +254,7 @@
 }
 
 .mic-btn {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg);
   color: var(--text-secondary);
   width: 50px;
   height: 50px;
@@ -262,19 +262,26 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
 }
 
-.mic-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+.mic-btn:hover:not(:disabled) {
   color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.mic-btn.listening {
+.mic-btn.recording {
   background: rgba(255, 75, 75, 0.2);
   color: var(--danger);
-  animation: pulseGlow 1.5s infinite;
-  box-shadow: 0 0 15px rgba(255, 75, 75, 0.4);
+  border-color: var(--danger);
+  animation: pulseRecord 1.5s infinite;
+}
+
+@keyframes pulseRecord {
+  0% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.4); }
+  70% { box-shadow: 0 0 0 15px rgba(255, 75, 75, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0); }
 }
 
 .send-btn {
@@ -402,29 +409,29 @@
   color: white;
 }
 
-.action-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 0.5rem;
-}
-
-.speak-btn {
-  color: var(--text-muted);
-  padding: 0.4rem;
-  border-radius: 6px;
-  transition: all 0.2s;
-  display: flex;
+/* Read Aloud Button */
+.read-aloud-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
-.speak-btn:hover {
+.read-aloud-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.read-aloud-btn.reading {
+  background: rgba(109, 93, 252, 0.2);
   color: var(--accent-secondary);
-  background: rgba(0, 210, 255, 0.1);
-}
-
-.speak-btn.active {
-  color: var(--accent-primary);
-  animation: pulseGlow 2s infinite;
+  border-color: rgba(109, 93, 252, 0.4);
 }
