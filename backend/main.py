@@ -90,7 +90,8 @@ async def transcribe_audio(file: UploadFile = File(...)):
         with open(temp_file, "rb") as f:
             transcription = client.audio.transcriptions.create(
                 file=(file.filename, f.read()),
-                model="whisper-large-v3"
+                model="whisper-large-v3",
+                language="en"
             )
             
         # Clean up temp file
